@@ -274,44 +274,27 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 <!-- 締め・支払い -->
 <div id="page-payment" class="page">
   <div class="card" style="margin-top:12px;">
-    <div class="card-label">本日締め</div>
+    <div class="card-label">給与計算・支払い</div>
     <div class="close-grid">
-      <div class="fg"><label>セラピスト</label><select id="closeTherapist"><option value="">選択</option></select></div>
-      <div class="fg"><label>日付</label><input type="date" id="closeDate"></div>
+      <div class="fg"><label>セラピスト</label><select id="paySimpleTherapist" onchange="loadPaySimple()"><option value="">選択</option></select></div>
+      <div class="fg"><label>日付（例：9/24）</label><input type="text" id="paySimpleDate" placeholder="例：9/24" onchange="loadPaySimple()"></div>
     </div>
-    <button class="btn btn-blue" onclick="closeDay()">🔒 締め確定</button>
-    <div class="status" id="closeStatus"></div>
-    <div class="output-box" id="closeResult" style="display:none;margin-top:8px;"><div id="closeResultText" style="font-size:.8rem;line-height:1.8;"></div></div>
-  </div>
+    <button onclick="loadPaySimple()" style="background:linear-gradient(135deg,var(--pink),var(--pink2));border:none;border-radius:8px;color:#fff;cursor:pointer;font-family:'Noto Sans JP',sans-serif;font-size:.82rem;font-weight:700;padding:10px;width:100%;touch-action:manipulation;margin-top:6px;">🔍 給与を計算する</button>
 
-  <div class="card">
-    <div class="card-label">給与テンプレ生成</div>
-    <div class="close-grid">
-      <div class="fg"><label>セラピスト</label><select id="templateTherapist"><option value="">選択</option></select></div>
-      <div class="fg"><label>日付（例：5/15）</label><input type="text" id="templateDate" placeholder="例：5/15"></div>
+    <div id="paySimpleDetail" style="display:none;margin-top:12px;">
+      <div id="paySimpleBreakdown" style="background:var(--bg3);border-radius:8px;padding:10px;font-size:.78rem;margin-bottom:10px;"></div>
+      <div class="fg" style="margin-bottom:8px;">
+        <label>交通費（円）</label>
+        <input type="number" id="paySimpleTransport" placeholder="0" oninput="calcPaySimple()">
+      </div>
+      <div id="paySimpleTotal" style="background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:10px;font-size:.88rem;text-align:center;color:var(--pink);font-weight:700;"></div>
+      <button onclick="executePaySimple()" class="btn btn-green">✅ 支払済みにして給与テンプレを生成</button>
+      <div class="status" id="paySimpleStatus"></div>
+      <div id="paySimpleTemplate" style="display:none;margin-top:10px;">
+        <div class="output-box"><div class="output-tag">▼ 給与テンプレ（コピーしてLINEに）</div><div class="output-text" id="paySimpleTemplateText"></div></div>
+        <button class="btn-outline" id="paySimpleTemplateCopyBtn" onclick="copyText('paySimpleTemplateText','paySimpleTemplateCopyBtn')">📋 コピー</button>
+      </div>
     </div>
-    <button class="btn btn-pink" onclick="getSalaryTemplate()">📝 給与テンプレを生成</button>
-    <div class="output-box" id="templateResult" style="display:none;margin-top:8px;"><div class="output-tag">▼ コピーしてLINEに貼り付け</div><div class="output-text" id="templateText"></div></div>
-    <button class="btn-outline" id="templateCopyBtn" onclick="copyText('templateText','templateCopyBtn')" style="display:none;">📋 コピー</button>
-    <div class="status" id="templateStatus"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-label">未払い一覧・支払い処理</div>
-    <button class="btn btn-pink" onclick="loadUnpaid()">🔄 未払い一覧を読み込む</button>
-    <div id="unpaidList" style="margin-top:10px;"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-label">支払い処理（手動）</div>
-    <div class="close-grid">
-      <div class="fg"><label>セラピスト</label><select id="payTherapist"><option value="">選択</option></select></div>
-      <div class="fg"><label>日付</label><input type="date" id="payDate"></div>
-      <div class="fg"><label>交通費（円）</label><input type="number" id="transport" placeholder="0"></div>
-      <div class="fg"><label>繰越額（円）</label><input type="number" id="carryover" placeholder="0"></div>
-    </div>
-    <button class="btn btn-green" onclick="updatePayment()">✅ 支払済みにする</button>
-    <div class="status" id="payStatus"></div>
   </div>
 </div>
 
@@ -397,7 +380,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 </div>
 
 <script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzkLWh5eC0ZrOlEFMdtM91Wuz8w6HkRT3lwkOnUS90qCspc43WADfwSJgYj-qhBfX1bvQ/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmCXUdiGsFooiCw5xqvSiCdJkYBm62CHX9yqSwKIlnveGJs3NBbme48W4sWQKcaga3/exec';
 const COURSE_PRICE = {
   'スタンダード':{'60':10000,'90':15000,'120':20000},
   'プレミアム':{'100':20000,'130':25000,'160':30000},
@@ -858,6 +841,71 @@ function copyText(id,btnId){
 
 function setStatus(id,msg,type){const el=document.getElementById(id);if(!el)return;el.textContent=msg;el.className='status'+(type?' '+type:'');}
 async function post(data){const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(data),headers:{'Content-Type':'text/plain'}});return res.json();}
+
+
+// ===== シンプル支払い =====
+let paySimpleData = null;
+
+async function loadPaySimple() {
+  const therapist = document.getElementById('paySimpleTherapist').value;
+  const date = document.getElementById('paySimpleDate').value.trim();
+  if (!therapist || !date) return;
+
+  try {
+    const res = await post({action: 'getPaySimple', therapist, date});
+    if (!res.success) { alert(res.error || 'エラーが発生しました'); return; }
+
+    paySimpleData = res;
+    document.getElementById('paySimpleDetail').style.display = 'block';
+    document.getElementById('paySimpleTransport').value = 0;
+
+    let html = '';
+    html += `<div class="rw-row"><span class="rw-muted">コースバック</span><span>¥${(res.courseBack||0).toLocaleString()}</span></div>`;
+    html += `<div class="rw-row"><span class="rw-muted">指名バック</span><span>¥${(res.shimeiBack||0).toLocaleString()}</span></div>`;
+    if (res.optionBack > 0) html += `<div class="rw-row"><span class="rw-muted">オプションバック</span><span>¥${res.optionBack.toLocaleString()}</span></div>`;
+    html += `<div class="rw-row total"><span style="color:var(--pink);font-weight:700;">報酬小計</span><span style="color:var(--pink);font-weight:700;">¥${(res.totalReward||0).toLocaleString()}</span></div>`;
+    html += `<div class="rw-row"><span class="rw-muted">売上</span><span>¥${(res.totalSales||0).toLocaleString()}</span></div>`;
+    document.getElementById('paySimpleBreakdown').innerHTML = html;
+    calcPaySimple();
+
+  } catch(e) { alert('エラー: ' + e.message); }
+}
+
+function calcPaySimple() {
+  if (!paySimpleData) return;
+  const transport = parseInt(document.getElementById('paySimpleTransport').value) || 0;
+  const totalPay = (paySimpleData.totalReward || 0) + transport;
+  document.getElementById('paySimpleTotal').textContent = `💰 支払い合計：¥${totalPay.toLocaleString()}`;
+}
+
+async function executePaySimple() {
+  if (!paySimpleData) return;
+  const therapist = document.getElementById('paySimpleTherapist').value;
+  const date = document.getElementById('paySimpleDate').value.trim();
+  const transport = parseInt(document.getElementById('paySimpleTransport').value) || 0;
+  const totalPay = (paySimpleData.totalReward || 0) + transport;
+
+  setStatus('paySimpleStatus', '処理中...', '');
+  try {
+    const res = await post({action: 'paySimple', therapist, date, transport, totalPay});
+    if (res.success) {
+      setStatus('paySimpleStatus', '支払済みにしました！', 'ok');
+
+      // テンプレ生成
+      const totalSales = paySimpleData.totalSales || 0;
+      const storeShare = totalSales - totalPay;
+      let template = `${date} ${therapist}さん\n💰¥${totalPay.toLocaleString()}`;
+      const notes = [];
+      if (transport > 0) notes.push(`交通費¥${transport.toLocaleString()}込`);
+      if (notes.length > 0) template += `\n(${notes.join('・')})`;
+      template += `\n売上¥${totalSales.toLocaleString()}`;
+      template += `\n店取¥${storeShare.toLocaleString()}`;
+
+      document.getElementById('paySimpleTemplateText').textContent = template;
+      document.getElementById('paySimpleTemplate').style.display = 'block';
+    } else throw new Error(res.error);
+  } catch(e) { setStatus('paySimpleStatus', 'エラー: ' + e.message, 'err'); }
+}
 
 init();
 </script>
